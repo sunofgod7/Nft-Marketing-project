@@ -5,16 +5,9 @@ import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 contract nftRegistration is ERC20{
     address manager;
     
-    uint public pollNumber=0;
-    bool public runPoll = false;
+    uint public pollNumber=0;//Current voting number
+    bool public runPoll = false;//Check poll time
     mapping (uint=>uint) public pollTime;
-    struct winner{
-        address winnerAddress;
-        uint voteCounts;
-    }
-    mapping (uint=>winner) public pollWinner;
-    uint public allTokenHolders=1;
-    //List of nft
     struct nft{
         address senderAddress;
         address nftAddress; 
@@ -22,11 +15,16 @@ contract nftRegistration is ERC20{
         string description;
         uint votes;
     }
-    
+      
+    mapping (uint=>nft) public pollWinner;//Winners of each voting held
+    uint public allTokenHolders=1;//All voters and token takers
+  
+    //List of nft
     nft[] public nfts;
-    mapping (address=> uint) public allWithraw;  
-    mapping (address=> mapping (uint=>address[])) public targetVotes;
-    mapping (address=> mapping (uint=>uint)) public allVotes;
+    mapping (address=>  mapping (uint=>uint)) public voteRewards; //Everey vote reward
+    mapping (address=> uint) public allWithraw;//All receipts so far
+    mapping (address=> mapping (uint=>address[])) public targetVotes;//All NFTs voted by an address in each period
+    mapping (address=> mapping (uint=>uint)) public allVotes;//The total number of votes for each address in each voting period
     constructor() public ERC20("Nft marketing token", "NMT") {
         manager = msg.sender;
         _mint(address(this), (100000000 * 10**18));
@@ -36,50 +34,54 @@ contract nftRegistration is ERC20{
         _;
     }
 
+    //The amount received from the right vote to the winning NFT
     function checkMywins(address sender) private view returns(uint) {
           uint amount = 0;
-          for(uint i=1;i<=pollNumber;i++){
+          for(uint i=1;i<pollNumber;i++){
                for(uint j=0;j<targetVotes[msg.sender][i].length;j++){
-                   if(targetVotes[msg.sender][i][j]==pollWinner[i].winnerAddress){
-                       amount = amount + ((10000*10**18)/pollWinner[i].voteCounts);
+                   if(targetVotes[msg.sender][i][j]==pollWinner[i].nftAddress){
+                       amount = amount + ((20000*10**18)/pollWinner[i].votes);
                    }
                }
           }
           return amount;
     }
 
+    function checkVoteRewards(address sender) private view returns(uint) {
+          uint amount = 0;
+          for(uint i=1;i<pollNumber;i++){
+            amount = amount + ((voteRewards[msg.sender][i]*10000*10**18)/pollWinner[i].votes);
+          }
+          return amount;
+    }
+
+    //If I am a creditor from the contract, pay me
     function withrawAmount() public {
-        uint allAmount = checkMywins(msg.sender);
+        uint winAmount = checkMywins(msg.sender);
         uint withrawll = allWithraw[msg.sender];
+        uint voteReward = checkVoteRewards(msg.sender);
+        uint allAmount = winAmount+voteReward;
         require(withrawll<allAmount , "HAVE_NOT_WITHRAW");
         ERC20(address(this)).transfer(msg.sender , allAmount-withrawll);
         allWithraw[msg.sender] = allAmount;
-    }
+     }
 
-    function showWinner() private view returns(address) {
+    //NFT wins
+    function showWinner() private view returns(uint) {
            uint maxvote=0;
-           address winnerAddress;
+            uint index = 0;
 
             for(uint i=0;i<nfts.length;i++){
                 if(maxvote<nfts[i].votes){
                     maxvote=nfts[i].votes;
-                    winnerAddress = nfts[i].nftAddress;
+                    index = i;
                 }
             }
-            return winnerAddress;
+            return index;
     }
 
-    function winnerVoteCounts() private view returns(uint) {
-           uint maxvote=0;
-            for(uint i=0;i<nfts.length;i++){
-                if(maxvote<nfts[i].votes){
-                    maxvote=nfts[i].votes;
-                }
-            }
-            return maxvote;
-    }
-
-    function createPoll() public onlyowner{
+    
+    function createPoll() public{
          require(runPoll==false , "IS_RUN");
          runPoll = true;
          pollNumber++;
@@ -87,17 +89,20 @@ contract nftRegistration is ERC20{
     } 
     function closePoll() private{
          if(block.timestamp>=(pollTime[pollNumber]+(1*60*1)) && pollTime[pollNumber]!=0){
-            pollWinner[pollNumber].winnerAddress = showWinner();
-            pollWinner[pollNumber].voteCounts = winnerVoteCounts();
-            ERC20(address(this)).transfer(pollWinner[pollNumber].winnerAddress , 20000);
+            uint index = showWinner();
+            pollWinner[pollNumber].nftAddress = nfts[index].nftAddress;
+            pollWinner[pollNumber].votes = nfts[index].votes;
+            pollWinner[pollNumber].senderAddress = nfts[index].senderAddress;
+            ERC20(address(this)).transfer(pollWinner[pollNumber].senderAddress , 20000*10**18);
             runPoll = false;
             pollTime[pollNumber] = 0;
             delete nfts;
          }
     }
+
     function registerNft(address nftAddress ,uint nftIndex ,string memory nftDescription) public payable{
         require(runPoll , "NOT_POLLTIME");
-        require(msg.value>=0.00001 ether , "NOT_PAY");
+        require(msg.value>=100000000000000*allTokenHolders, "NOT_PAY");
         nft memory newItem;  
         newItem.nftAddress = nftAddress;
         newItem.senderAddress = msg.sender;
@@ -126,7 +131,7 @@ contract nftRegistration is ERC20{
            allTokenHolders++;
         }
         nfts[item].votes++;
-        ERC20(address(this)).transfer(msg.sender , 1*10**18/allTokenHolders);
+        voteRewards[msg.sender][pollNumber]++;
         closePoll();
 
      }
