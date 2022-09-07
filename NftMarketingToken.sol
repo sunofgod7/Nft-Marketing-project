@@ -166,9 +166,7 @@ import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
      }
     //Construction of NFT at the time of voting
     
-    //Construction of NFT at the time of voting
-    //0xF9680D99D6C9589e2a93a78A04A279e509205945
-    // test net  0x0FCAa9c899EC5A91eBc3D5Dd869De833b06fB046
+     
     function buyToken(uint amount) public payable{
          require(runPoll , "NOT_POLLTIME");
          require(soldToken[pollNumber]+amount<=50000,"OUT_OF_ALLOWANCE");
