@@ -1,15 +1,15 @@
 pragma solidity ^0.8.0;
  
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
-
-contract nftRegistration is ERC20{
+ contract nftRegistration is ERC20{
+  
     address manager1;
     address manager2;
     address manager3;
     
     uint public pollNumber=0;//Current voting number
     bool public runPoll = false;//Check poll time
-    mapping (uint=>uint) public pollTime;
+     mapping (uint=>uint) public pollTime;
     struct nft{
         address senderAddress;
         address nftAddress; 
@@ -17,7 +17,7 @@ contract nftRegistration is ERC20{
         string description;
         uint votes;
     }
-      
+    mapping (uint=>uint) public soldToken;//Tokens sold in each voting held
     mapping (uint=>nft) public pollWinner;//Winners of each voting held
     uint public allTokenHolders=1;//All voters and token takers
   
@@ -116,6 +116,9 @@ contract nftRegistration is ERC20{
             pollWinner[pollNumber].votes = nfts[index].votes;
             pollWinner[pollNumber].senderAddress = nfts[index].senderAddress;
             ERC20(address(this)).transfer(pollWinner[pollNumber].senderAddress , 20000*10**18);
+            if(50000-soldToken[pollNumber]>0){//burn
+                _burn(address(this),(50000-soldToken[pollNumber])*10**18);
+            }
             runPoll = false;
             pollTime[pollNumber] = 0;
             delete nfts;
@@ -161,7 +164,20 @@ contract nftRegistration is ERC20{
         closePoll();
 
      }
+    //Construction of NFT at the time of voting
+    
+    //Construction of NFT at the time of voting
+    //0xF9680D99D6C9589e2a93a78A04A279e509205945
+    // test net  0x0FCAa9c899EC5A91eBc3D5Dd869De833b06fB046
+    function buyToken(uint amount) public payable{
+         require(runPoll , "NOT_POLLTIME");
+         require(soldToken[pollNumber]+amount<=50000,"OUT_OF_ALLOWANCE");
+         require(msg.value>=(amount*10**18)/15000,"NOT_ENOUGH");
+         ERC20(address(this)).transfer(msg.sender , amount*(10**18));
+         soldToken[pollNumber] = soldToken[pollNumber] + amount;
+    }
 
+    
      
 
 
